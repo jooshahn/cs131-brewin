@@ -4,7 +4,7 @@ from enum import Enum
 from brewparse import parse_program
 from env_v4 import EnvironmentManager
 from intbase import InterpreterBase, ErrorType
-from type_valuev4 import Closure, Type, Value, create_value, get_printable
+from type_valuev4 import Object, Closure, Type, Value, create_value, get_printable
 
 
 class ExecStatus(Enum):
