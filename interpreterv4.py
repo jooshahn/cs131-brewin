@@ -24,6 +24,8 @@ class Interpreter(InterpreterBase):
         super().__init__(console_output, inp)
         self.trace_output = trace_output
         self.__setup_ops()
+        self.objects = []
+        self.this_tracker = None
 
     # run a program that's provided in a string
     # usese the provided Parser found in brewparse.py to parse the program
@@ -92,6 +94,11 @@ class Interpreter(InterpreterBase):
             status = ExecStatus.CONTINUE
             if statement.elem_type == InterpreterBase.FCALL_DEF:
                 self.__call_func(statement)
+            elif statement.elem_type == InterpreterBase.MCALL_DEF:
+                self.__call_func(statement) # fix
+                ###########################################################
+                # Need to call and write mfunc function
+                ###########################################################
             elif statement.elem_type == "=":
                 self.__assign(statement)
             elif statement.elem_type == InterpreterBase.RETURN_DEF:
@@ -126,7 +133,7 @@ class Interpreter(InterpreterBase):
 
         new_env = {}
         self.__prepare_env_with_closed_variables(target_closure, new_env)
-        self.__prepare_params(target_ast,call_ast, new_env)
+        self.__prepare_params(target_ast, call_ast, new_env)
         self.env.push(new_env)
         _, return_val = self.__run_statements(target_ast.get("statements"))
         self.env.pop()
@@ -171,7 +178,7 @@ class Interpreter(InterpreterBase):
             super().output(get_printable(result))
         elif args is not None and len(args) > 1:
             super().error(
-                ErrorType.NAME_ERROR, "No inputi() function that takes > 1 parameter"
+                ErrorType.NAME_ERROR, "No input function that takes > 1 parameter"
             )
         inp = super().get_input()
         if call_ast.get("name") == "inputi":
@@ -181,15 +188,39 @@ class Interpreter(InterpreterBase):
 
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
-        src_value_obj = copy.copy(self.__eval_expr(assign_ast.get("expression")))
-        target_value_obj = self.env.get(var_name)
-        if target_value_obj is None:
-            self.env.set(var_name, src_value_obj)
+        if "." in var_name:  # variable name is referencing an object
+            obj_name, method_name = self.__get_object_name(var_name)
+            if obj_name is None:
+                super().error(
+                    ErrorType.NAME_ERROR, f"No this object to be referenced"
+                )
+            obj = self.__get_object(obj_name)
+            if obj is None:
+                super().error(
+                    ErrorType.NAME_ERROR, f"No object found with name {obj_name}"
+                )
+            src_value_obj = copy.copy(self.__eval_expr(assign_ast.get("expression")))
+            if src_value_obj.t == Type.OBJECT:
+                self.objects.append([method_name, src_value_obj.v])
+            target_value_obj = obj.env.get(method_name)
+            if target_value_obj is None:
+                obj.env.set(method_name, src_value_obj)
+            else:
+                if target_value_obj.t == Type.CLOSURE and src_value_obj.t != Type.CLOSURE:
+                    target_value_obj.v.type = src_value_obj.t
+                target_value_obj.set(src_value_obj)
         else:
-                        # if a close is changed to another type such as int, we cannot make function calls on it any more 
-            if target_value_obj.t == Type.CLOSURE and src_value_obj.t != Type.CLOSURE:
-                target_value_obj.v.type = src_value_obj.t
-            target_value_obj.set(src_value_obj)
+            src_value_obj = copy.copy(self.__eval_expr(assign_ast.get("expression")))
+            if src_value_obj.t == Type.OBJECT:
+                self.objects.append([var_name, src_value_obj.v])
+            target_value_obj = self.env.get(var_name)
+            if target_value_obj is None:
+                self.env.set(var_name, src_value_obj)
+            else:
+                # if a close is changed to another type such as int, we cannot make function calls on it any more 
+                if target_value_obj.t == Type.CLOSURE and src_value_obj.t != Type.CLOSURE:
+                    target_value_obj.v.type = src_value_obj.t
+                target_value_obj.set(src_value_obj)
 
     def __eval_expr(self, expr_ast):
         if expr_ast.elem_type == InterpreterBase.NIL_DEF:
@@ -204,6 +235,11 @@ class Interpreter(InterpreterBase):
             return self.__eval_name(expr_ast)
         if expr_ast.elem_type == InterpreterBase.FCALL_DEF:
             return self.__call_func(expr_ast)
+        if expr_ast.elem_type == InterpreterBase.MCALL_DEF:
+            return self.__call_func(expr_ast) # fix
+            ###########################################################
+            # Need to call and write mcall function
+            ###########################################################
         if expr_ast.elem_type in Interpreter.BIN_OPS:
             return self.__eval_op(expr_ast)
         if expr_ast.elem_type == Interpreter.NEG_DEF:
@@ -212,10 +248,39 @@ class Interpreter(InterpreterBase):
             return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
         if expr_ast.elem_type == Interpreter.LAMBDA_DEF:
             return Value(Type.CLOSURE, Closure(expr_ast, self.env))
+        if expr_ast.elem_type == InterpreterBase.OBJ_DEF:
+            empty_env = EnvironmentManager()
+            return Value(Type.OBJECT, Object(empty_env))
+
+    def __get_object(self, obj_name):
+        for obj in self.objects:
+            if obj[0] == obj_name:
+                return obj[1]
+        return None
+    
+    def __get_object_name(self, var_name):
+        obj_name, method_name = var_name.split(".")
+        if obj_name == "this":
+            obj_name = self.this_tracker
+        return obj_name, method_name
 
     def __eval_name(self, name_ast):
+        obj_name = None
         var_name = name_ast.get("name")
-        val = self.env.get(var_name)
+        if "." in var_name:  # variable name is referencing an object
+            obj_name, method_name = self.__get_object_name(var_name)
+            if obj_name is None:
+                super().error(
+                    ErrorType.NAME_ERROR, f"No this object to be referenced"
+                )
+            obj = self.__get_object(obj_name)
+            if obj is None:
+                super().error(
+                    ErrorType.NAME_ERROR, f"No object found with name {obj_name}"
+                )
+            val = obj.env.get(method_name)
+        else:
+            val = self.env.get(var_name)
         if val is not None:
             return val
         closure = self.__get_func_by_name(var_name, None)
@@ -379,6 +444,10 @@ class Interpreter(InterpreterBase):
         self.op_to_lambda[Type.CLOSURE]["!="] = lambda x, y: Value(
             Type.BOOL, x.value() != y.value()
         )
+
+        ###########################################################
+        # set up operations on objects
+        ###########################################################
 
     def __do_if(self, if_ast):
         cond_ast = if_ast.get("condition")

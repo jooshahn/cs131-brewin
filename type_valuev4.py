@@ -11,6 +11,13 @@ class Type(Enum):
     STRING = 3
     CLOSURE = 4
     NIL = 5
+    OBJECT = 6
+
+
+class Object:
+    def __init__(self, env):
+        self.type = Type.OBJECT
+        self.env = copy.deepcopy(env)
 
 
 class Closure:
