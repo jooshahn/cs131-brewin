@@ -95,10 +95,7 @@ class Interpreter(InterpreterBase):
             if statement.elem_type == InterpreterBase.FCALL_DEF:
                 self.__call_func(statement)
             elif statement.elem_type == InterpreterBase.MCALL_DEF:
-                self.__call_func(statement) # fix
-                ###########################################################
-                # Need to call and write mfunc function
-                ###########################################################
+                self.__call_method(statement) # fix
             elif statement.elem_type == "=":
                 self.__assign(statement)
             elif statement.elem_type == InterpreterBase.RETURN_DEF:
@@ -120,7 +117,7 @@ class Interpreter(InterpreterBase):
         func_name = call_ast.get("name")
         if func_name == "print":
             return self.__call_print(call_ast)
-        if func_name == "inputi":
+        if func_name == "inputi" or func_name == "inputs":
             return self.__call_input(call_ast)
 
         actual_args = call_ast.get("args")
@@ -137,6 +134,31 @@ class Interpreter(InterpreterBase):
         self.env.push(new_env)
         _, return_val = self.__run_statements(target_ast.get("statements"))
         self.env.pop()
+        return return_val
+
+    def __call_method(self, call_ast):
+        obj_ref = call_ast.get("objref")
+        old_this = self.this_tracker
+        if obj_ref == "this":
+            obj_ref = self.this_tracker
+        else:
+            self.this_tracker = obj_ref
+        method_name = call_ast.get("name")
+        actual_args = call_ast.get("args")
+        target_closure = self.__get_func_by_name(method_name, len(actual_args)) # check getfuncbyname
+        if target_closure == None:
+            super().error(ErrorType.NAME_ERROR, f"Method {method_name} not found")
+        if target_closure.type != Type.CLOSURE:
+            super().error(ErrorType.TYPE_ERROR, f"Method {method_name} is changed to non-function type.")
+        target_ast = target_closure.func_ast
+
+        new_env = {}
+        self.__prepare_env_with_closed_variables(target_closure, new_env)
+        self.__prepare_params(target_ast, call_ast, new_env)
+        self.env.push(new_env)
+        _, return_val = self.__run_statements(target_ast.get("statements"))
+        self.env.pop()
+        self.this_tracker = old_this
         return return_val
 
     def __prepare_env_with_closed_variables(self, target_closure, temp_env):
@@ -236,10 +258,7 @@ class Interpreter(InterpreterBase):
         if expr_ast.elem_type == InterpreterBase.FCALL_DEF:
             return self.__call_func(expr_ast)
         if expr_ast.elem_type == InterpreterBase.MCALL_DEF:
-            return self.__call_func(expr_ast) # fix
-            ###########################################################
-            # Need to call and write mcall function
-            ###########################################################
+            return self.__call_method(expr_ast)
         if expr_ast.elem_type in Interpreter.BIN_OPS:
             return self.__eval_op(expr_ast)
         if expr_ast.elem_type == Interpreter.NEG_DEF:
@@ -445,9 +464,13 @@ class Interpreter(InterpreterBase):
             Type.BOOL, x.value() != y.value()
         )
 
-        ###########################################################
-        # set up operations on objects
-        ###########################################################
+        self.op_to_lambda[Type.OBJECT] = {}
+        self.op_to_lambda[Type.OBJECT]["=="] = lambda x, y: Value(
+            Type.BOOL, x.value() == y.value()
+        )
+        self.op_to_lambda[Type.OBJECT]["!="] = lambda x, y: Value(
+            Type.BOOL, x.value() != y.value()
+        )
 
     def __do_if(self, if_ast):
         cond_ast = if_ast.get("condition")
