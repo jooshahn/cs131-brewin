@@ -95,7 +95,7 @@ class Interpreter(InterpreterBase):
             if statement.elem_type == InterpreterBase.FCALL_DEF:
                 self.__call_func(statement)
             elif statement.elem_type == InterpreterBase.MCALL_DEF:
-                self.__call_method(statement) # fix
+                self.__call_method(statement)
             elif statement.elem_type == "=":
                 self.__assign(statement)
             elif statement.elem_type == InterpreterBase.RETURN_DEF:
@@ -145,15 +145,28 @@ class Interpreter(InterpreterBase):
             self.this_tracker = obj_ref
         method_name = call_ast.get("name")
         actual_args = call_ast.get("args")
-        target_closure = self.__get_func_by_name(method_name, len(actual_args)) # check getfuncbyname
-        if target_closure == None:
-            super().error(ErrorType.NAME_ERROR, f"Method {method_name} not found")
-        if target_closure.type != Type.CLOSURE:
-            super().error(ErrorType.TYPE_ERROR, f"Method {method_name} is changed to non-function type.")
-        target_ast = target_closure.func_ast
+
+        obj = self.__get_object(obj_ref)
+
+        closure_val_obj = obj.env.get(method_name)
+        if closure_val_obj is None:
+            super().error(
+                ErrorType.NAME_ERROR, f"Method {method_name} not found"
+            )
+        if closure_val_obj.type() != Type.CLOSURE:
+            super().error(
+                ErrorType.TYPE_ERROR, "Trying to call method with non-closure"
+            )
+        closure = closure_val_obj.value()
+        num_formal_params = len(closure.func_ast.get("args"))
+        if num_formal_params != len(actual_args):
+            super().error(
+                ErrorType.TYPE_ERROR, "Invalid # of args to lambda"
+            )
+        target_ast = closure.func_ast
 
         new_env = {}
-        self.__prepare_env_with_closed_variables(target_closure, new_env)
+        self.__prepare_env_with_closed_variables(closure, new_env)
         self.__prepare_params(target_ast, call_ast, new_env)
         self.env.push(new_env)
         _, return_val = self.__run_statements(target_ast.get("statements"))
