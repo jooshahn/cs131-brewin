@@ -147,6 +147,10 @@ class Interpreter(InterpreterBase):
         actual_args = call_ast.get("args")
 
         obj = self.__get_object(obj_ref)
+        if obj is None:
+            super().error(
+                ErrorType.TYPE_ERROR, "Trying to access non-exisistent object"
+            )
 
         closure_val_obj = obj.env.get(method_name)
         if closure_val_obj is None:
@@ -221,6 +225,13 @@ class Interpreter(InterpreterBase):
         if call_ast.get("name") == "inputs":
             return Value(Type.STRING, inp)
 
+    def __inherit_methods(self, child, parent):
+        # add all of the nonshadowed parent methods to the child object
+        for field in parent.env:
+            if child.env.get(field[0]) is not None:
+                continue
+            child.env.set(field[0], copy.deepcopy(field[1]))
+
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
         if "." in var_name:  # variable name is referencing an object
@@ -241,6 +252,11 @@ class Interpreter(InterpreterBase):
                 new_field = False
 
             src_value_obj = copy.copy(self.__eval_expr(assign_ast.get("expression")))
+
+            if method_name == "proto":
+                self.__inherit_methods(obj, src_value_obj.v)
+                return
+            
             if src_value_obj.t == Type.OBJECT:
                 if new_field: # check if assigning new obj vs overriding exisiting obj
                     self.objects.append([var_name, src_value_obj.v])
