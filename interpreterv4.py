@@ -319,7 +319,7 @@ class Interpreter(InterpreterBase):
             captured_env = self.env
             for v in self.env:
                 if v[1].t == Type.INT or v[1].t == Type.STRING or v[1].t == Type.BOOL:
-                    captured_env.set(v[0], v[1])
+                    captured_env.set(v[0], copy.deepcopy(v[1]))
             return Value(Type.CLOSURE, Closure(expr_ast, captured_env))
         if expr_ast.elem_type == InterpreterBase.OBJ_DEF:
             empty_env = EnvironmentManager()
