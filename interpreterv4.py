@@ -253,7 +253,7 @@ class Interpreter(InterpreterBase):
                     # add new obj
                     empty_env = EnvironmentManager()
                     new_val_obj = Value(Type.OBJECT, Object(empty_env))
-                    self.objects.append([var_name, new_val_obj.v])  # figure out how to add x.a = @ as an object (and how to access it later)
+                    self.objects.append([var_name, new_val_obj.v])
             target_value_obj = obj.env.get(method_name)
             if target_value_obj is None:
                 obj.env.set(method_name, src_value_obj)
@@ -316,10 +316,12 @@ class Interpreter(InterpreterBase):
         if expr_ast.elem_type == Interpreter.NOT_DEF:
             return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
         if expr_ast.elem_type == Interpreter.LAMBDA_DEF:
-            captured_env = self.env
+            captured_env = EnvironmentManager()
             for v in self.env:
                 if v[1].t == Type.INT or v[1].t == Type.STRING or v[1].t == Type.BOOL:
                     captured_env.set(v[0], copy.deepcopy(v[1]))
+                else:
+                    captured_env.set(v[0], v[1])
             return Value(Type.CLOSURE, Closure(expr_ast, captured_env))
         if expr_ast.elem_type == InterpreterBase.OBJ_DEF:
             empty_env = EnvironmentManager()
