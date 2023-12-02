@@ -36,7 +36,7 @@ class Interpreter(InterpreterBase):
         self.env = EnvironmentManager()
         main_func = self.__get_func_by_name("main", 0)
         if main_func is None:
-            super().error(ErrorType.NAME_ERROR, f"Function {name} not found")
+            super().error(ErrorType.NAME_ERROR, f"Function main not found")
         self.__run_statements(main_func.func_ast.get("statements"))
 
     def __set_up_function_table(self, ast):
@@ -234,9 +234,26 @@ class Interpreter(InterpreterBase):
                 super().error(
                     ErrorType.NAME_ERROR, f"No object found with name {obj_name}"
                 )
+
+            if obj.env.get(method_name) is None:
+                new_field = True
+            else:
+                new_field = False
+
             src_value_obj = copy.copy(self.__eval_expr(assign_ast.get("expression")))
             if src_value_obj.t == Type.OBJECT:
-                self.objects.append([method_name, src_value_obj.v])
+                if new_field: # check if assigning new obj vs overriding exisiting obj
+                    self.objects.append([var_name, src_value_obj.v])
+                else:
+                    # remove existing obj (if it exists)
+                    for o in self.objects:
+                        if o[0] == var_name:
+                            self.objects.remove(o)
+                            break
+                    # add new obj
+                    empty_env = EnvironmentManager()
+                    new_val_obj = Value(Type.OBJECT, Object(empty_env))
+                    self.objects.append([var_name, new_val_obj.v])  # figure out how to add x.a = @ as an object (and how to access it later)
             target_value_obj = obj.env.get(method_name)
             if target_value_obj is None:
                 obj.env.set(method_name, src_value_obj)
@@ -246,8 +263,28 @@ class Interpreter(InterpreterBase):
                 target_value_obj.set(src_value_obj)
         else:
             src_value_obj = copy.copy(self.__eval_expr(assign_ast.get("expression")))
+
+            if self.env.get(var_name) is None:
+                new_field = True
+            else:
+                new_field = False
+
             if src_value_obj.t == Type.OBJECT:
-                self.objects.append([var_name, src_value_obj.v])
+                if new_field:
+                    self.objects.append([var_name, src_value_obj.v])
+                else:
+                    # remove existing obj (if it exists)
+                    for o in self.objects:
+                        if o[0] == var_name:
+                            self.objects.remove(o)
+                            break
+                    # add new obj
+                    empty_env = EnvironmentManager()
+                    new_val_obj = Value(Type.OBJECT, Object(empty_env))
+                    self.objects.append([var_name, new_val_obj.v])
+            # if src_value_obj.t == Type.CLOSURE and not new_field:
+                # overwritting an existing function
+
             target_value_obj = self.env.get(var_name)
             if target_value_obj is None:
                 self.env.set(var_name, src_value_obj)
@@ -279,7 +316,11 @@ class Interpreter(InterpreterBase):
         if expr_ast.elem_type == Interpreter.NOT_DEF:
             return self.__eval_unary(expr_ast, Type.BOOL, lambda x: not x)
         if expr_ast.elem_type == Interpreter.LAMBDA_DEF:
-            return Value(Type.CLOSURE, Closure(expr_ast, self.env))
+            captured_env = self.env
+            for v in self.env:
+                if v[1].t == Type.INT or v[1].t == Type.STRING or v[1].t == Type.BOOL:
+                    captured_env.set(v[0], v[1])
+            return Value(Type.CLOSURE, Closure(expr_ast, captured_env))
         if expr_ast.elem_type == InterpreterBase.OBJ_DEF:
             empty_env = EnvironmentManager()
             return Value(Type.OBJECT, Object(empty_env))
