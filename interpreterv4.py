@@ -151,6 +151,7 @@ class Interpreter(InterpreterBase):
             super().error(
                 ErrorType.TYPE_ERROR, "Trying to access non-exisistent object"
             )
+        self.__inherit_methods(obj)
 
         closure_val_obj = obj.env.get(method_name)
         if closure_val_obj is None:
@@ -225,7 +226,7 @@ class Interpreter(InterpreterBase):
         if call_ast.get("name") == "inputs":
             return Value(Type.STRING, inp)
 
-    def __inherit_methods(self, child):
+    def __inherit_methods(self, child): #1,3,5,7,10,12,13
         # create env with all nonshadowed parent methods to add to the child object
         if child.parent == None:
             return
