@@ -19,6 +19,7 @@ class Object:
         self.type = Type.OBJECT
         self.env = copy.deepcopy(env)
         self.parent = None
+        self.self_defined = []
 
 
 class Closure:

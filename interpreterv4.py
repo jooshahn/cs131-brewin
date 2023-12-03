@@ -226,14 +226,13 @@ class Interpreter(InterpreterBase):
         if call_ast.get("name") == "inputs":
             return Value(Type.STRING, inp)
 
-    def __inherit_methods(self, child): #1,3,5,7,10,12,13
+    def __inherit_methods(self, child):
         # create env with all nonshadowed parent methods to add to the child object
         if child.parent == None:
             return
         for field in child.parent.env:
-            if child.env.get(field[0]) is None: # adds field from parent to child if child doesnt have
+            if field[0] not in child.self_defined: # adds/sets field from parent to child if child doesnt have
                 child.env.set(field[0], copy.deepcopy(field[1]))
-                # ISSUE: need to remove from child after OR have way of updating during inheritence
                 # ISSUE: multiple level inheritence
 
     def __assign(self, assign_ast):
@@ -266,7 +265,7 @@ class Interpreter(InterpreterBase):
                 super().error(
                     ErrorType.TYPE_ERROR, "Proto field only takes in valid objects"
                 )
-            
+
             if src_value_obj.t == Type.OBJECT:
                 if new_field: # check if assigning new obj vs overriding exisiting obj
                     self.objects.append([var_name, src_value_obj.v])
@@ -280,6 +279,9 @@ class Interpreter(InterpreterBase):
                     empty_env = EnvironmentManager()
                     new_val_obj = Value(Type.OBJECT, Object(empty_env))
                     self.objects.append([var_name, new_val_obj.v])
+
+            if method_name not in obj.self_defined:
+                obj.self_defined.append(method_name)
             target_value_obj = obj.env.get(method_name)
             if target_value_obj is None:
                 obj.env.set(method_name, src_value_obj)
