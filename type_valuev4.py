@@ -18,6 +18,7 @@ class Object:
     def __init__(self, env):
         self.type = Type.OBJECT
         self.env = copy.deepcopy(env)
+        self.parent = None
 
 
 class Closure:

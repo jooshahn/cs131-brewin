@@ -225,12 +225,15 @@ class Interpreter(InterpreterBase):
         if call_ast.get("name") == "inputs":
             return Value(Type.STRING, inp)
 
-    def __inherit_methods(self, child, parent):
-        # add all of the nonshadowed parent methods to the child object
-        for field in parent.env:
-            if child.env.get(field[0]) is not None:
-                continue
-            child.env.set(field[0], copy.deepcopy(field[1]))
+    def __inherit_methods(self, child):
+        # create env with all nonshadowed parent methods to add to the child object
+        if child.parent == None:
+            return
+        for field in child.parent.env:
+            if child.env.get(field[0]) is None: # adds field from parent to child if child doesnt have
+                child.env.set(field[0], copy.deepcopy(field[1]))
+                # ISSUE: need to remove from child after OR have way of updating during inheritence
+                # ISSUE: multiple level inheritence
 
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
@@ -246,6 +249,8 @@ class Interpreter(InterpreterBase):
                     ErrorType.NAME_ERROR, f"No object found with name {obj_name}"
                 )
 
+            self.__inherit_methods(obj)
+
             if obj.env.get(method_name) is None:
                 new_field = True
             else:
@@ -254,8 +259,12 @@ class Interpreter(InterpreterBase):
             src_value_obj = copy.copy(self.__eval_expr(assign_ast.get("expression")))
 
             if method_name == "proto":
-                self.__inherit_methods(obj, src_value_obj.v)
-                return
+                if src_value_obj.t == Type.OBJECT:
+                    obj.parent = src_value_obj.v
+                    return
+                super().error(
+                    ErrorType.TYPE_ERROR, "Proto field only takes in valid objects"
+                )
             
             if src_value_obj.t == Type.OBJECT:
                 if new_field: # check if assigning new obj vs overriding exisiting obj
@@ -369,6 +378,7 @@ class Interpreter(InterpreterBase):
                 super().error(
                     ErrorType.NAME_ERROR, f"No object found with name {obj_name}"
                 )
+            self.__inherit_methods(obj)
             val = obj.env.get(method_name)
         else:
             val = self.env.get(var_name)
