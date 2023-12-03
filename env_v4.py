@@ -24,6 +24,15 @@ class EnvironmentManager:
 
         # symbol not found anywhere in the environment
         self.environment[-1][symbol] = value
+    
+    def remove(self, symbol):
+        i = 1
+        for captured in reversed(self.environment):
+            for var_name, value in captured.items():
+                if var_name == symbol:
+                    del self.environment[-i][var_name]
+                    return
+            i = i + 1
 
     # create a new symbol in the top-most environment, regardless of whether that symbol exists
     # in a lower environment

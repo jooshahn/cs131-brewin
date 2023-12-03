@@ -149,7 +149,7 @@ class Interpreter(InterpreterBase):
         obj = self.__get_object(obj_ref)
         if obj is None:
             super().error(
-                ErrorType.TYPE_ERROR, "Trying to access non-exisistent object"
+                ErrorType.NAME_ERROR, "Trying to access non-exisistent object"
             )
         self.__inherit_methods(obj)
 
@@ -229,11 +229,20 @@ class Interpreter(InterpreterBase):
     def __inherit_methods(self, child):
         # create env with all nonshadowed parent methods to add to the child object
         if child.parent == None:
+            # remove all instances of parent fields in child object that no longer apply
+            removing = True
+            while removing:
+                for field in child.env:
+                    if field[0] not in child.self_defined:
+                        child.env.remove(field[0])
+                        break
+                removing = False
             return
+        if child.parent.parent is not None:
+            self.__inherit_methods(child.parent)
         for field in child.parent.env:
             if field[0] not in child.self_defined: # adds/sets field from parent to child if child doesnt have
                 child.env.set(field[0], copy.deepcopy(field[1]))
-                # ISSUE: multiple level inheritence
 
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
@@ -262,8 +271,11 @@ class Interpreter(InterpreterBase):
                 if src_value_obj.t == Type.OBJECT:
                     obj.parent = src_value_obj.v
                     return
+                elif src_value_obj.t == Type.NIL:
+                    obj.parent = None
+                    return
                 super().error(
-                    ErrorType.TYPE_ERROR, "Proto field only takes in valid objects"
+                    ErrorType.TYPE_ERROR, "Proto field only takes in valid objects or nil"
                 )
 
             if src_value_obj.t == Type.OBJECT:
