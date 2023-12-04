@@ -233,16 +233,16 @@ class Interpreter(InterpreterBase):
             return Value(Type.STRING, inp)
 
     def __inherit_methods(self, child):
+        # remove all instances of parent fields in child object that no longer apply
+        for field in child.env:
+            print("checking", field[0])
+            if field[0] not in child.self_defined:
+                child.env.remove(field[0])
+                print("removed:", field[0])
+                self.__inherit_methods(child)
+                return
         # create env with all nonshadowed parent methods to add to the child object
         if child.parent == None:
-            # remove all instances of parent fields in child object that no longer apply
-            removing = True
-            while removing:
-                for field in child.env:
-                    if field[0] not in child.self_defined:
-                        child.env.remove(field[0])
-                        break
-                removing = False
             return
         if child.parent.parent is not None:
             self.__inherit_methods(child.parent)
@@ -263,6 +263,10 @@ class Interpreter(InterpreterBase):
                 )
             obj = self.__get_object(obj_name)
             if obj is None:
+                if self.env.get(obj_name) is not None:
+                    super().error(
+                        ErrorType.TYPE_ERROR, f"{obj} is not an object"
+                    )
                 super().error(
                     ErrorType.NAME_ERROR, f"No object found with name {obj_name}"
                 )
@@ -278,6 +282,7 @@ class Interpreter(InterpreterBase):
 
             if method_name == "proto":
                 obj.env.set(method_name, src_value_obj)
+                obj.self_defined.append(method_name)
                 if src_value_obj.t == Type.OBJECT:
                     obj.parent = src_value_obj.v
                     return
@@ -311,6 +316,24 @@ class Interpreter(InterpreterBase):
                 if target_value_obj.t == Type.CLOSURE and src_value_obj.t != Type.CLOSURE:
                     target_value_obj.v.type = src_value_obj.t
                 target_value_obj.set(src_value_obj)
+        elif var_name == "this":
+            var_name = self.this_tracker
+            if var_name is None:
+                super().error(
+                    ErrorType.NAME_ERROR, "this object doesn't refer to any object"
+                )
+
+            for o in self.objects:
+                if o[0] == var_name:
+                    self.objects.remove(o)
+                    break
+
+            src_value_obj = copy.copy(self.__eval_expr(assign_ast.get("expression")))
+            if src_value_obj.t != Type.OBJECT:
+                super().error(
+                    ErrorType.TYPE_ERROR, "Cannot assign non object to an object type"
+                )
+            self.objects.append([var_name, src_value_obj.v])
         else:
             src_value_obj = copy.copy(self.__eval_expr(assign_ast.get("expression")))
 
@@ -332,6 +355,11 @@ class Interpreter(InterpreterBase):
                     empty_env = EnvironmentManager()
                     new_val_obj = Value(Type.OBJECT, Object(empty_env))
                     self.objects.append([var_name, new_val_obj.v])
+            elif self.__is_object(var_name):
+                for o in self.objects:
+                        if o[0] == var_name:
+                            self.objects.remove(o)
+                            break
 
             target_value_obj = self.env.get(var_name)
             if target_value_obj is None:
@@ -341,6 +369,12 @@ class Interpreter(InterpreterBase):
                 if target_value_obj.t == Type.CLOSURE and src_value_obj.t != Type.CLOSURE:
                     target_value_obj.v.type = src_value_obj.t
                 target_value_obj.set(src_value_obj)
+
+    def __is_object(self, name):
+        for obj in self.objects:
+            if obj[0] == name:
+                return True
+        return False
 
     def __eval_expr(self, expr_ast):
         if expr_ast.elem_type == InterpreterBase.NIL_DEF:
@@ -398,11 +432,21 @@ class Interpreter(InterpreterBase):
                 )
             obj = self.__get_object(obj_name)
             if obj is None:
+                if self.env.get(obj_name) is not None:
+                    super().error(
+                        ErrorType.TYPE_ERROR, f"{obj} is not an object"
+                    )
                 super().error(
                     ErrorType.NAME_ERROR, f"No object found with name {obj_name}"
                 )
             self.__inherit_methods(obj)
             val = obj.env.get(method_name)
+        elif var_name == "this":
+            var_name = self.this_tracker
+            if var_name is None:
+                super().error(
+                    ErrorType.NAME_ERROR, f"this object does not refer to any object"
+                )
         else:
             val = self.env.get(var_name)
         if val is not None:
