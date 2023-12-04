@@ -148,6 +148,10 @@ class Interpreter(InterpreterBase):
 
         obj = self.__get_object(obj_ref)
         if obj is None:
+            if self.env.get(obj_ref) is not None:
+                super().error(
+                    ErrorType.TYPE_ERROR, f"{obj_ref} is not an object"
+                )
             super().error(
                 ErrorType.NAME_ERROR, "Trying to access non-exisistent object"
             )
@@ -322,8 +326,6 @@ class Interpreter(InterpreterBase):
                     empty_env = EnvironmentManager()
                     new_val_obj = Value(Type.OBJECT, Object(empty_env))
                     self.objects.append([var_name, new_val_obj.v])
-            # if src_value_obj.t == Type.CLOSURE and not new_field:
-                # overwritting an existing function
 
             target_value_obj = self.env.get(var_name)
             if target_value_obj is None:
