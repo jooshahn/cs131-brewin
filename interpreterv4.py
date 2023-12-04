@@ -248,7 +248,10 @@ class Interpreter(InterpreterBase):
             self.__inherit_methods(child.parent)
         for field in child.parent.env:
             if field[0] not in child.self_defined: # adds/sets field from parent to child if child doesnt have
-                child.env.set(field[0], copy.deepcopy(field[1]))
+                if field[1].t == Type.CLOSURE:
+                    child.env.set(field[0], field[1])
+                else:
+                    child.env.set(field[0], copy.deepcopy(field[1]))
 
     def __assign(self, assign_ast):
         var_name = assign_ast.get("name")
