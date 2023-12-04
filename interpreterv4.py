@@ -234,11 +234,11 @@ class Interpreter(InterpreterBase):
 
     def __inherit_methods(self, child):
         # remove all instances of parent fields in child object that no longer apply
+        # copy_env = copy.deepcopy(child.env)
+        # for field in copy_env:
         for field in child.env:
-            print("checking", field[0])
             if field[0] not in child.self_defined:
                 child.env.remove(field[0])
-                print("removed:", field[0])
                 self.__inherit_methods(child)
                 return
         # create env with all nonshadowed parent methods to add to the child object
@@ -282,7 +282,8 @@ class Interpreter(InterpreterBase):
 
             if method_name == "proto":
                 obj.env.set(method_name, src_value_obj)
-                obj.self_defined.append(method_name)
+                if method_name not in obj.self_defined:
+                    obj.self_defined.append(method_name)
                 if src_value_obj.t == Type.OBJECT:
                     obj.parent = src_value_obj.v
                     return
@@ -447,6 +448,17 @@ class Interpreter(InterpreterBase):
                 super().error(
                     ErrorType.NAME_ERROR, f"this object does not refer to any object"
                 )
+            obj = self.__get_object(obj_name)
+            if obj is None:
+                if self.env.get(obj_name) is not None:
+                    super().error(
+                        ErrorType.TYPE_ERROR, f"{obj} is not an object"
+                    )
+                super().error(
+                    ErrorType.NAME_ERROR, f"No object found with name {obj_name}"
+                )
+            self.__inherit_methods(obj)
+            val = obj.env.get(method_name)
         else:
             val = self.env.get(var_name)
         if val is not None:
