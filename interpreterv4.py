@@ -249,7 +249,7 @@ class Interpreter(InterpreterBase):
         for field in child.parent.env:
             if field[0] not in child.self_defined: # adds/sets field from parent to child if child doesnt have
                 if field[1].t == Type.CLOSURE:
-                    child.env.set(field[0], field[1])
+                    child.env.set(field[0], copy.copy(field[1]))
                 else:
                     child.env.set(field[0], copy.deepcopy(field[1]))
 
