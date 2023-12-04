@@ -206,6 +206,8 @@ class Interpreter(InterpreterBase):
                 result = copy.deepcopy(self.__eval_expr(actual_ast))
             arg_name = formal_ast.get("name")
             temp_env[arg_name] = result
+            if result.t == Type.OBJECT:
+                self.objects.append([arg_name, result.v])
 
     def __call_print(self, call_ast):
         output = ""
@@ -272,6 +274,7 @@ class Interpreter(InterpreterBase):
             src_value_obj = copy.copy(self.__eval_expr(assign_ast.get("expression")))
 
             if method_name == "proto":
+                obj.env.set(method_name, src_value_obj)
                 if src_value_obj.t == Type.OBJECT:
                     obj.parent = src_value_obj.v
                     return
